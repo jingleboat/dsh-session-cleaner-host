@@ -1,0 +1,16 @@
+node_modules/
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# logs / temp
+*.log
+*.tmp
+.tmp/
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

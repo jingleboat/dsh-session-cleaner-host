@@ -1,0 +1,24 @@
+# dsh-session-cleaner: delete whole sessions, and ask follow-up questions
+# through a concurrent subagent (host + UI in one bundle).
+#
+# This is the BUNDLE patch for this package: it only declares this plugin's own
+# row. Other packages' rows belong in the profile patch layer
+# (~/.dsh/profiles/desktop/cordis.patch.yml), which is applied AFTER every
+# bundle layer. In particular the ask subagent's scoped auto-compaction backend
+# lives there:
+#   - id: compaction-basic / disabled: false / config: { auto: false }
+# (auto:false = no GLOBAL automatic compaction; this plugin calls
+#  ctx.compaction.compactIfNeeded() itself, scoped to its own ask subagents.)
+# Do NOT copy that row here: installing this plugin must not silently enable
+# another package for the whole profile.
+- insert:
+    - id: session-cleaner
+      name: '@local/dsh-session-cleaner-host'
+      config:
+        zstdChecksum: true
+        enableHttpApi: true
+        # 默认就是 false；显式写出来是给维护者看的：
+        # 关闭"改写父会话日志以抹掉子智能体目录行"（与官方 append-only 契约冲突、有截断风险）。
+        rewriteParentLog: false
+        # 默认 true：ask 子智能体在下一次提问的 pre-step 按上下文压力自动压缩（仅限本插件的 ask 子会话）。
+        askAutoCompact: true
