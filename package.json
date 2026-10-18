@@ -1,10 +1,10 @@
 {
   "name": "@local/dsh-session-cleaner-host",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "DeepSeek Harness plugin: delete a whole conversation, and quote/ask on a text selection through a reused concurrent subagent (host + Web client in one bundle).",
+  "description": "DeepSeek Harness plugin: delete a whole conversation, and quote/ask a text selection from the right-click context menu (Copy / Quote / Ask) through a reused concurrent subagent (host + Web client in one bundle).",
   "keywords": [
     "deepseek-harness",
     "dsh",
@@ -18,7 +18,7 @@
     "url": "git+https://github.com/jingleboat/dsh-session-cleaner-host.git"
   },
   "scripts": {
-    "test": "node test/internals.test.mjs"
+    "test": "node test/internals.test.mjs && node test/client-context-menu.test.mjs"
   },
   "exports": {
     ".": "./index.js",

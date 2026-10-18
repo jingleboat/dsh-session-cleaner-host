@@ -4,7 +4,10 @@ A **DeepSeek Harness (DSH)** plugin — host half and Web client half in one bun
 things to the DSH Web GUI:
 
 1. **Delete a conversation** from the sidebar session menu, with a confirmation dialog.
-2. **Quote / Ask on a text selection** — select text in the chat and a small toolbar appears above it:
+2. **Quote / Ask from the right-click menu** — select text in a chat message, then right-click. The
+   plugin takes over the context menu and shows **Copy / Quote / Ask**, with Copy first, exactly where
+   the native menu item used to be:
+   - **Copy** writes the selection to the clipboard (the same action as before, now drawn by us).
    - **Quote** inserts a Markdown quote block (role + turn metadata) into the composer.
    - **Ask** sends the selection plus your question to a *concurrent subagent* and streams the answer
      into the right sidebar, without interrupting the main conversation.
@@ -18,7 +21,7 @@ things to the DSH Web GUI:
 | Surface | What it does |
 | --- | --- |
 | `sidebar.workspaces.session.menu.item` | **Delete session** — stops a running session (flush + detach), detaches it from the workspace registry, invalidates its projection cache, physically removes the session directory, cleans its spill directory, cascades to its `origin: subagent` children (fork branches are never cascaded), then broadcasts `api-session/removed`. |
-| `shell.overlay` | Selection toolbar: **Quote** (insert into the composer) and **Ask** (concurrent subagent question). |
+| `shell.overlay` | Selection **right-click menu**: **Copy** (clipboard) / **Quote** (insert into the composer) / **Ask** (concurrent subagent question). The menu is drawn by the plugin because the desktop app builds its native context menu in the Electron main process, which a renderer plugin cannot extend; `preventDefault()` on `contextmenu` keeps the native menu from popping. |
 | `sidebar.right.pane.tab` | **Follow-up** tab: streams the ask subagent's answer (reasoning + text) in the right sidebar. |
 
 ### Ask reuses one subagent
@@ -93,9 +96,13 @@ curl -s http://127.0.0.1:19387/api/dsh-session-cleaner/version
 **Quote / Ask**
 
 1. Select some text in a chat message.
-2. A toolbar appears above the selection: **Quote** / **Ask**.
-3. *Quote* appends a quoted block to the composer. *Ask* opens a question box; send it and the
-   **Follow-up** tab opens in the right sidebar with the streamed answer.
+2. Right-click inside the selection.
+3. The context menu opens with **Copy / Quote / Ask** (Copy first, then a separator).
+4. *Quote* appends a quoted block to the composer. *Ask* swaps the menu for a question box; send it
+   and the **Follow-up** tab opens in the right sidebar with the streamed answer.
+
+Right-clicking in the composer, or right-clicking without a selection, keeps the normal system menu
+(cut / paste / select all).
 
 **Delete a conversation**
 
@@ -149,6 +156,25 @@ the shipped DSH sources, and getting any of them wrong produces silent data loss
    `node_modules`. `package.json` declares no dependencies at all.
 8. **Selections are quoted verbatim** and capped at 2000 characters; a selection spanning two messages
    or inside a streaming message is ignored.
+
+---
+
+## Tests
+
+```powershell
+npm test
+```
+
+Two self-contained suites, no DSH, no browser and no real session data:
+
+| Suite | Covers |
+| --- | --- |
+| `test/internals.test.mjs` | host half: zstd session-log framing, projection keys, log decode/encode |
+| `test/client-context-menu.test.mjs` | client half: loads the real `client.js` through a minimal DOM/React/ctx stub, then checks the right-click path — capture-phase listener, `preventDefault()` only on a selected message, menu order (Copy → Quote → Ask), viewport clamping, native-menu passthrough in the composer / without a selection, and listener cleanup on dispose |
+
+`test/verify-served-bundle.mjs` is an optional live check (needs a running DSH): it recomputes the
+host's bundle rev from `client.js` metadata, fetches the exact bundle the host is serving, and fails if
+the running host still hands out a stale copy. Point it at another instance with `DSH_WEB_URL`.
 
 ---
 

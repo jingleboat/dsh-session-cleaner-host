@@ -1,11 +1,18 @@
 /**
  * dsh-session-cleaner — 客户端 UI 半边：
  *  1. 工作区会话行 "..." 菜单 → 「删除会话」；
- *  2. 鼠标在对话里选中一段消息 → 浮动工具条「引用 / 提问」：
+ *  2. 鼠标在对话里选中一段消息 → 右键 → 原生式菜单「复制 / 引用 / 提问」：
+ *     - 复制：把选中文本写入剪贴板（取代被我们接管的系统菜单项）；
  *     - 引用：把选中内容（带来源元数据）插入当前输入框；
  *     - 提问：把选中内容 + 问题派生子 agent 并发回答，流式显示在右侧栏。
  * 只 require('react')，不依赖任何 Harness Client 包；样式仅用主题 token。
  * 参考 @michengai/dsh-sidebar-qa 的选取与输入框接入机制。
+ *
+ * 为什么自己画菜单：桌面端的右键菜单是 Electron 主进程用 Menu.buildFromTemplate
+ * 弹的原生菜单（有选区时只有一条 role:'copy'），渲染进程无法往里追加条目；但页面在
+ * contextmenu 里 preventDefault() 就不会请求主进程弹菜单（官方 primitives 的
+ * JSON 复制按钮就是这么做的）。所以这里接管 contextmenu，复刻「复制」为第一项，
+ * 再把本插件条目排在它后面。
  */
 window.__ModuleLoader__.load({
   id: "@local/dsh-session-cleaner-host",
@@ -20,6 +27,8 @@ window.__ModuleLoader__.load({
 
     const zh = {
       "menu.deleteSession": "删除会话",
+      "action.copy": "复制",
+      "action.copied": "已复制",
       "action.quote": "引用",
       "action.ask": "提问",
       "ask.hint": "输入你的问题（并发回答，显示在右侧栏）",
@@ -39,6 +48,8 @@ window.__ModuleLoader__.load({
     };
     const en = {
       "menu.deleteSession": "Delete session",
+      "action.copy": "Copy",
+      "action.copied": "Copied",
       "action.quote": "Quote",
       "action.ask": "Ask",
       "ask.hint": "Type your question (answered concurrently in the right sidebar)",
@@ -76,6 +87,37 @@ window.__ModuleLoader__.load({
         h("path", {
           d: "M6.2 4C4.3 4.6 3 6.2 3 8.4c0 1.4.9 2.4 2.1 2.4 1 0 1.8-.8 1.8-1.8 0-1-.8-1.7-1.7-1.7.1-.9.6-1.7 1.5-2.2L6.2 4Zm6.3 0c-1.9.6-3.2 2.2-3.2 4.4 0 1.4.9 2.4 2.1 2.4 1 0 1.8-.8 1.8-1.8 0-1-.8-1.7-1.7-1.7.1-.9.6-1.7 1.5-2.2L12.5 4Z",
           fill: "currentColor",
+        }),
+      );
+    }
+
+    function IconCopy() {
+      return h(
+        "svg",
+        { viewBox: "0 0 16 16", width: 14, height: 14, "aria-hidden": true },
+        h("path", {
+          d: "M5.5 5.5h6.2a.8.8 0 0 1 .8.8v6.2a.8.8 0 0 1-.8.8H5.5a.8.8 0 0 1-.8-.8V6.3a.8.8 0 0 1 .8-.8ZM3.5 10.5H3a.8.8 0 0 1-.8-.8V3.5a.8.8 0 0 1 .8-.8h6.2a.8.8 0 0 1 .8.8v.5",
+          stroke: "currentColor", strokeWidth: 1.2, fill: "none", strokeLinecap: "round", strokeLinejoin: "round",
+        }),
+      );
+    }
+    function IconCheck() {
+      return h(
+        "svg",
+        { viewBox: "0 0 16 16", width: 14, height: 14, "aria-hidden": true },
+        h("path", {
+          d: "m3.5 8.5 3 3 6-6.5",
+          stroke: "currentColor", strokeWidth: 1.4, fill: "none", strokeLinecap: "round", strokeLinejoin: "round",
+        }),
+      );
+    }
+    function IconAsk() {
+      return h(
+        "svg",
+        { viewBox: "0 0 16 16", width: 14, height: 14, "aria-hidden": true },
+        h("path", {
+          d: "M13 8.4c0 2.4-2.2 4.3-5 4.3-.6 0-1.2-.1-1.7-.2L3 14l.7-2.6C3 10.6 3 9.6 3 8.4 3 6 5.2 4.1 8 4.1s5 1.9 5 4.3Z",
+          stroke: "currentColor", strokeWidth: 1.2, fill: "none", strokeLinecap: "round", strokeLinejoin: "round",
         }),
       );
     }
@@ -129,14 +171,18 @@ window.__ModuleLoader__.load({
 .dsc-dialog button.dsc-danger:hover{filter:brightness(1.08)}
 .dsc-dialog button.dsc-primary{background:var(--dsw-alias-brand-primary);color:#fff;border-color:transparent}
 .dsc-dialog button.dsc-primary:hover{filter:brightness(1.08)}
-.dsc-popover{pointer-events:auto;position:fixed;z-index:1200;display:flex;flex-direction:column;gap:6px;box-sizing:border-box;min-width:180px;max-width:320px;padding:8px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-overlay,var(--dsw-alias-bg-layer-2));box-shadow:var(--dsw-elevation-prominent,0 12px 32px rgba(0,0,0,.25));color:var(--dsw-alias-label-primary)}
-.dsc-popover .dsc-popRow{display:flex;gap:6px}
-.dsc-popover button{font-size:13px;line-height:22px;padding:4px 12px;border-radius:var(--dsw-radius-sm);border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-.dsc-popover button:hover{background:var(--dsw-alias-interactive-bg-hover)}
-.dsc-popover button.dsc-primary{background:var(--dsw-alias-brand-primary);color:#fff;border-color:transparent}
-.dsc-popover .dsc-askBox{display:flex;flex-direction:column;gap:6px}
-.dsc-popover textarea{box-sizing:border-box;width:100%;min-height:64px;resize:vertical;font:inherit;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-base);border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm);padding:8px}
-.dsc-popover textarea:focus{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:-2px}
+.dsc-ctxMenu{pointer-events:auto;position:fixed;z-index:1200;box-sizing:border-box;min-width:172px;max-width:340px;padding:4px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-overlay,var(--dsw-alias-bg-layer-2));box-shadow:var(--dsw-elevation-prominent,0 12px 32px rgba(0,0,0,.25));color:var(--dsw-alias-label-primary);user-select:none}
+.dsc-ctxMenu .dsc-menuItem{font-size:13px;line-height:18px;padding:5px 8px}
+.dsc-ctxMenu .dsc-menuItem svg{width:14px;height:14px;color:var(--dsw-alias-label-secondary)}
+.dsc-ctxSep{height:1px;margin:4px 6px;background:var(--dsw-alias-border-l1)}
+.dsc-ctxAsk{display:flex;flex-direction:column;gap:6px;padding:4px;min-width:280px}
+.dsc-ctxAsk .dsc-askQuote{max-height:120px;overflow:auto;margin:0}
+.dsc-ctxAsk textarea{box-sizing:border-box;width:100%;min-height:64px;resize:vertical;font:inherit;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-base);border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm);padding:8px}
+.dsc-ctxAsk textarea:focus{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:-2px}
+.dsc-ctxAsk .dsc-popRow{display:flex;gap:6px;justify-content:flex-end}
+.dsc-ctxAsk .dsc-popRow button{font-size:13px;line-height:22px;padding:4px 12px;border-radius:var(--dsw-radius-sm);border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);cursor:pointer}
+.dsc-ctxAsk .dsc-popRow button:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dsc-ctxAsk .dsc-popRow button.dsc-primary{background:var(--dsw-alias-brand-primary);color:#fff;border-color:transparent}
 .dsc-askPanel{display:flex;flex-direction:column;gap:10px;padding:4px 2px;box-sizing:border-box;height:100%;overflow-y:auto;overscroll-behavior:contain}
 .dsc-askQuote{font-family:inherit;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-interactive-bg-hover);border-left:2px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm);padding:8px 10px;margin:0;white-space:pre-wrap;word-break:break-word}
 .dsc-askQuestion{font-size:14px;line-height:22px;font-weight:600;color:var(--dsw-alias-label-primary);white-space:pre-wrap;word-break:break-word}
@@ -161,7 +207,7 @@ window.__ModuleLoader__.load({
       return String(kind).toLowerCase().includes("user") ? "user" : "assistant";
     }
 
-    /** 捕获并校验当前窗口选取，返回 {text, kind, turn, rect} 或 null。 */
+    /** 捕获并校验当前窗口选取，返回 {text, kind, turn, anchorKey, rect} 或 null。 */
     function captureSelection() {
       const sel = window.getSelection();
       if (sel === null || sel.isCollapsed || sel.rangeCount === 0) return null;
@@ -174,13 +220,59 @@ window.__ModuleLoader__.load({
       if (isStreaming(startAnchor)) return null;
       const kind = startAnchor.dataset.chatFlowKind ?? "";
       const turn = startAnchor.dataset.chatTurn ?? "";
+      const anchorKey = startAnchor.dataset.chatAnchorKey ?? "";
       const rect = range.getBoundingClientRect();
       return {
         text,
         kind,
         turn,
+        anchorKey,
         rect: { left: rect.left, top: rect.top, width: rect.width, bottom: rect.bottom },
       };
+    }
+
+    /** 右键落点是否在输入类元素里：那里交给系统菜单（剪切 / 粘贴 / 全选）。 */
+    function isEditableTarget(node) {
+      const element = node !== null && node?.nodeType === 1 ? node : node?.parentElement ?? null;
+      if (element === null || element === undefined || typeof element.closest !== "function") return false;
+      if (element.closest("[contenteditable=''],[contenteditable='true'],[contenteditable='plaintext-only']") !== null) return true;
+      const tag = element.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+    }
+
+    /** 右键落点所属的消息节点 key（与选区比对，避免用过期的旧选区开菜单）。 */
+    function anchorKeyOfTarget(node) {
+      const element = node !== null && node?.nodeType === 1 ? node : node?.parentElement ?? null;
+      if (element === null || element === undefined || typeof element.closest !== "function") return "";
+      const anchor = element.closest("[data-chat-anchor-key]");
+      return anchor === null ? "" : anchor.dataset.chatAnchorKey ?? "";
+    }
+
+    /** 写剪贴板：优先 async clipboard（127.0.0.1 属安全上下文），退回 execCommand。 */
+    async function copyToClipboard(text) {
+      try {
+        if (navigator.clipboard !== undefined && typeof navigator.clipboard.writeText === "function") {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch {
+        /* 落到下面的兜底 */
+      }
+      try {
+        const area = document.createElement("textarea");
+        area.value = text;
+        area.setAttribute("readonly", "");
+        area.style.position = "fixed";
+        area.style.top = "-1000px";
+        area.style.opacity = "0";
+        document.body.appendChild(area);
+        area.select();
+        const ok = document.execCommand("copy");
+        area.remove();
+        return ok;
+      } catch {
+        return false;
+      }
     }
 
     /** 选取控制器（每个激活周期一个）。 */
@@ -559,85 +651,167 @@ window.__ModuleLoader__.load({
           return true;
         };
 
-        // 浮动工具条组件（读 selection controller，渲染到 shell.overlay）。
-        function SelectionPopover() {
-          const state = useSyncExternalStore(selectionController.subscribe, selectionController.getSnapshot);
-          const [asking, setAsking] = useState(false);
-          const [question, setQuestion] = useState("");
-          const selection = state.selection;
-          const isNull = selection === null;
-          useEffect(() => {
-            if (isNull) {
-              setAsking(false);
-              setQuestion("");
-            }
-          }, [isNull]);
-          if (selection === null) return null;
-          const { rect } = selection;
-          const left = rect.left + rect.width / 2;
-          const top = rect.top - 12;
+        // 右键菜单状态：{ id, selection, x, y } | null（id 用来在重开时重置面板状态）。
+        const ctxMenuStore = createStore();
+        let ctxMenuSeq = 0;
 
-          const keep = (e) => { e.preventDefault(); };
-          const fireQuote = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
+        /** 接管 contextmenu：落在带选区的消息上时弹本插件的菜单，其余情况放行系统菜单。 */
+        const onContextMenu = (event) => {
+          if (event.defaultPrevented) return;
+          // 输入框里保持系统菜单（剪切 / 粘贴 / 全选）。
+          if (isEditableTarget(event.target)) return;
+          const target = event.target !== null && event.target?.nodeType === 1 ? event.target : null;
+          if (target !== null && target.closest !== undefined && target.closest(".dsc-ctxMenu") !== null) return;
+          const targetKey = anchorKeyOfTarget(event.target);
+          if (targetKey === "") return;
+          // 优先用当前选区；右键可能先把文档选区收掉，此时退回上一次合法选区，
+          // 但必须落在同一条消息上，避免拿旧选区开菜单。
+          const fresh = captureSelection();
+          const stored = selectionController.getSnapshot().selection;
+          const selection =
+            fresh !== null && fresh.anchorKey === targetKey
+              ? fresh
+              : stored !== null && stored.anchorKey === targetKey
+                ? stored
+                : null;
+          if (selection === null) return;
+          event.preventDefault();
+          event.stopPropagation();
+          ctxMenuSeq += 1;
+          ctxMenuStore.set({ id: ctxMenuSeq, selection, x: event.clientX, y: event.clientY });
+        };
+
+        /** 选取右键菜单（shell.overlay）：复制 → 引用 / 提问。 */
+        function SelectionContextMenu() {
+          const menu = useSyncExternalStore(ctxMenuStore.subscribe, ctxMenuStore.getSnapshot);
+          const [asking, setAsking] = useState(false);
+          const [copied, setCopied] = useState(false);
+          const [question, setQuestion] = useState("");
+          const rootRef = useRef(null);
+          const menuId = menu === null ? 0 : menu.id;
+          const close = () => ctxMenuStore.set(null);
+
+          // 每次重新打开都回到「菜单态」。
+          useEffect(() => {
+            setAsking(false);
+            setCopied(false);
+            setQuestion("");
+          }, [menuId]);
+
+          // 点击别处 / Esc / 滚动 / 窗口失焦 → 关闭。
+          // 提问态不监听滚动：textarea 聚焦可能让宿主把面板滚进视野，那不该关掉它。
+          useEffect(() => {
+            if (menu === null) return undefined;
+            const onPointerDown = (event) => {
+              const root = rootRef.current;
+              if (root !== null && event.target !== null && event.target?.nodeType !== undefined && root.contains(event.target)) return;
+              close();
+            };
+            const onKeyDown = (event) => {
+              if (event.key !== "Escape") return;
+              event.preventDefault();
+              event.stopPropagation();
+              close();
+            };
+            const dismiss = () => close();
+            document.addEventListener("mousedown", onPointerDown, true);
+            document.addEventListener("keydown", onKeyDown, true);
+            window.addEventListener("resize", dismiss);
+            window.addEventListener("blur", dismiss);
+            if (!asking) window.addEventListener("scroll", dismiss, true);
+            return () => {
+              document.removeEventListener("mousedown", onPointerDown, true);
+              document.removeEventListener("keydown", onKeyDown, true);
+              window.removeEventListener("resize", dismiss);
+              window.removeEventListener("blur", dismiss);
+              window.removeEventListener("scroll", dismiss, true);
+            };
+          }, [menuId, asking]);
+
+          // 复制完成后短暂显示「已复制」再收起。
+          useEffect(() => {
+            if (!copied) return undefined;
+            const timer = window.setTimeout(close, 700);
+            return () => window.clearTimeout(timer);
+          }, [copied]);
+
+          if (menu === null) return null;
+          const selection = menu.selection;
+          const width = asking ? 300 : 184;
+          const height = asking ? 240 : 96;
+          const left = Math.max(8, Math.min(menu.x, window.innerWidth - width - 8));
+          const top = Math.max(8, Math.min(menu.y, window.innerHeight - height - 8));
+
+          const fireCopy = () => {
+            void copyToClipboard(selection.text).then((ok) => {
+              if (ok) setCopied(true);
+              else close();
+            });
+          };
+          const fireQuote = () => {
+            close();
             if (onQuote(selection)) selectionController.clear();
           };
-          const fireAskToggle = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            // 钉住选区：进入提问态后停止 recompute，否则 textarea 获得焦点
-            // 会让文档选区坍缩，从而清空选区并让整个工具条消失。
-            selectionController.pin();
-            setAsking(true);
-          };
-          const dismiss = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            selectionController.clear();
-          };
-          const fireSend = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
+          const fireSend = () => {
+            close();
             if (onAsk(selection, question)) selectionController.clear();
+          };
+          const onAskKeyDown = (event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              fireSend();
+            }
           };
 
           return h(
             "div",
-            { className: "dsc-popover", style: { left, top } },
-            h(
-              "div",
-              { className: "dsc-popRow" },
-              h("button", { type: "button", onMouseDown: keep, onMouseUp: keep, onClick: fireQuote }, h(IconQuote), t("action.quote")),
-              h("button", { type: "button", className: "dsc-primary", onMouseDown: keep, onMouseUp: keep, onClick: fireAskToggle }, t("action.ask")),
-            ),
+            {
+              ref: rootRef,
+              className: "dsc-ctxMenu",
+              role: "menu",
+              style: { left, top },
+              onContextMenu: (event) => event.preventDefault(),
+            },
             asking
               ? h(
                   "div",
-                  { className: "dsc-askBox" },
-                  h(
-                    "textarea",
-                    {
-                      autoFocus: true,
-                      placeholder: t("ask.hint"),
-                      value: question,
-                      onChange: (e) => setQuestion(e.target.value),
-                      onKeyDown: (e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          fireSend(e);
-                        }
-                      },
-                    },
-                  ),
+                  { className: "dsc-ctxAsk" },
+                  h("pre", { className: "dsc-askQuote" }, buildQuote(selection, t)),
+                  h("textarea", {
+                    autoFocus: true,
+                    placeholder: t("ask.hint"),
+                    value: question,
+                    onChange: (event) => setQuestion(event.target.value),
+                    onKeyDown: onAskKeyDown,
+                  }),
                   h(
                     "div",
                     { className: "dsc-popRow" },
-                    h("button", { type: "button", onClick: dismiss }, t("dialog.cancel")),
+                    h("button", { type: "button", onClick: close }, t("dialog.cancel")),
                     h("button", { type: "button", className: "dsc-primary", onClick: fireSend }, t("ask.send")),
                   ),
                 )
-              : null,
+              : [
+                  h(
+                    "button",
+                    { key: "copy", type: "button", role: "menuitem", className: "dsc-menuItem", onClick: fireCopy },
+                    copied ? h(IconCheck) : h(IconCopy),
+                    h("span", null, copied ? t("action.copied") : t("action.copy")),
+                  ),
+                  h("div", { key: "sep", className: "dsc-ctxSep", role: "separator" }),
+                  h(
+                    "button",
+                    { key: "quote", type: "button", role: "menuitem", className: "dsc-menuItem", onClick: fireQuote },
+                    h(IconQuote),
+                    h("span", null, t("action.quote")),
+                  ),
+                  h(
+                    "button",
+                    { key: "ask", type: "button", role: "menuitem", className: "dsc-menuItem", onClick: () => setAsking(true) },
+                    h(IconAsk),
+                    h("span", null, t("action.ask")),
+                  ),
+                ],
           );
         }
 
@@ -771,13 +945,19 @@ window.__ModuleLoader__.load({
           ),
         );
 
-        /** 选取浮动工具条 */
+        /** 选取右键菜单 */
         ctx.slots.inject("shell.overlay", () =>
           ctx.slots.register(
-            { name: "shell.overlay", id: "dsh-session-cleaner.selection-popover", locale: NS },
-            SelectionPopover,
+            { name: "shell.overlay", id: "dsh-session-cleaner.selection-menu", locale: NS },
+            SelectionContextMenu,
           ),
         );
+
+        // 右键接管（capture 阶段，先于页面其它监听）：装 + 卸载时摘掉。
+        ctx.effect(() => {
+          document.addEventListener("contextmenu", onContextMenu, true);
+          return () => document.removeEventListener("contextmenu", onContextMenu, true);
+        }, "dsh-session-cleaner: context menu listener");
 
         // 卸载时释放选取监听。
         ctx.effect(() => () => selectionController.dispose(), "dsh-session-cleaner: selection listeners");

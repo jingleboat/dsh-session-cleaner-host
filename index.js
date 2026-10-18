@@ -25,8 +25,8 @@ export const name = "dsh-session-cleaner";
 export const inject = ["webServer"];
 
 /** 供 /version 诊断：确认当前运行的是哪一版插件代码。 */
-const PLUGIN_BUILD = "2026-10-16.reuse-ask+autocompact-nostop";
-const PLUGIN_FEATURES = { askReuse: true, askLabel: "ask", verifiedSessionDir: true, askAutoCompact: true };
+const PLUGIN_BUILD = "2026-10-18.ctxmenu-quote-ask";
+const PLUGIN_FEATURES = { askReuse: true, askLabel: "ask", verifiedSessionDir: true, askAutoCompact: true, contextMenuQuote: true };
 
 const DEFAULTS = {
   /** 会话存储根目录；留空 = $DSH_HOME/sessions */
